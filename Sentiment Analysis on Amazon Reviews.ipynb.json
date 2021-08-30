@@ -1,0 +1,370 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#importing necessary libraries "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import matplotlib.pyplot as plt\n",
+    "from tensorflow.python.keras import models, layers, optimizers\n",
+    "import tensorflow\n",
+    "from tensorflow.keras.preprocessing.text import Tokenizer, text_to_word_sequence\n",
+    "from tensorflow.keras.preprocessing.sequence import pad_sequences\n",
+    "import gzip\n",
+    "import bz2\n",
+    "from sklearn.metrics import f1_score, roc_auc_score, accuracy_score\n",
+    "import re\n",
+    "\n",
+    "%matplotlib inline\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Creating a function to load the text and labels from train and test set"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def get_labels_and_texts(file):\n",
+    "    '''\n",
+    "    extract label and tokens from the dataset\n",
+    "    '''\n",
+    "    labels = []\n",
+    "    texts = []\n",
+    "    for line in bz2.BZ2File('/Users/priyadarshanialbuquerque/Dropbox/My Mac (Priyadarshani’s MacBook Air)/Desktop/file/test.ft.txt.bz2'):\n",
+    "        x = line.decode(\"utf-8\") # decode each line\n",
+    "        labels.append(int(x[9]) - 1) # get integer from the label and subtracting from 1 so that we get labels like 0,1,2, and so on\n",
+    "        texts.append(x[10:].strip()) # tokenization of the review\n",
+    "    return np.array(labels), texts\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_labels, train_texts = get_labels_and_texts('train.ft.txt.bz2') \n",
+    "#tokenization of train data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "test_labels, test_texts = get_labels_and_texts('test.ft.txt.bz2')\n",
+    "#tokenization of Test data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "1"
+      ]
+     },
+     "execution_count": 12,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "train_labels[0]\n",
+    "# label value of first training dataset's review"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'great cd  my lovely pat has one of the great voices of her generation  i have listened to this cd for years and i still love it  when i m in a good mood it makes me feel better  a bad mood just evaporates like sugar in the rain  this cd just oozes life  vocals are jusat stuunning and lyrics just kill  one of life s hidden gems  this is a desert isle cd in my book  why she never made it big is just beyond me  everytime i play this  no matter black  white  young  old  male  female everybody says one thing  who was that singing   '"
+      ]
+     },
+     "execution_count": 18,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "train_texts[0]\n",
+    "# Text of first training dataset's review\n",
+    "#Need to remove the punctuation, captal char, emojis"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_labels=train_labels[0:1000]\n",
+    "# limiting the data upto 1000"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "train_texts=train_texts[0:1000]\n",
+    "# minimizing the data upto 1000"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#text pre-processing"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import re\n",
+    "NON_ALPHANUM = re.compile(r'[\\W]') \n",
+    "NON_ASCII = re.compile(r'[^a-z0-1\\s]') \n",
+    "def normalize_texts(texts):\n",
+    "    normalized_texts = []\n",
+    "    for text in texts:\n",
+    "        lower = text.lower() # converting text to lower case to make review consistance\n",
+    "        no_punctuation = NON_ALPHANUM.sub(r' ', lower) # removing Punctuations\n",
+    "        no_non_ascii = NON_ASCII.sub(r'', no_punctuation) # removing unecessary char like emojis \n",
+    "        normalized_texts.append(no_non_ascii)\n",
+    "    return normalized_texts \n",
+    "        \n",
+    "train_texts = normalize_texts(train_texts) #filtering the training text\n",
+    "test_texts = normalize_texts(test_texts)#filtering the test text"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'great cd  my lovely pat has one of the great voices of her generation  i have listened to this cd for years and i still love it  when i m in a good mood it makes me feel better  a bad mood just evaporates like sugar in the rain  this cd just oozes life  vocals are jusat stuunning and lyrics just kill  one of life s hidden gems  this is a desert isle cd in my book  why she never made it big is just beyond me  everytime i play this  no matter black  white  young  old  male  female everybody says one thing  who was that singing   '"
+      ]
+     },
+     "execution_count": 23,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "train_texts[0] \n",
+    "# all unnecessary data removed"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#countvectorizer"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from sklearn.feature_extraction.text import CountVectorizer\n",
+    "\n",
+    "cv = CountVectorizer(binary=True)\n",
+    "cv.fit(train_texts)\n",
+    "X = cv.transform(train_texts)\n",
+    "X_test = cv.transform(test_texts)\n",
+    "\n",
+    "# converted text into vectors which help in prediction"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<400000x9260 sparse matrix of type '<class 'numpy.int64'>'\n",
+       "\twith 19528860 stored elements in Compressed Sparse Row format>"
+      ]
+     },
+     "execution_count": 26,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_test"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Accuracy for C=0.01: 0.692\n",
+      "Accuracy for C=0.05: 0.728\n",
+      "Accuracy for C=0.25: 0.752\n",
+      "Accuracy for C=0.5: 0.756\n",
+      "Accuracy for C=1: 0.76\n"
+     ]
+    }
+   ],
+   "source": [
+    "from sklearn.linear_model import LogisticRegression\n",
+    "from sklearn.metrics import accuracy_score\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "\n",
+    "#training the model on train dataset\n",
+    "\n",
+    "X_train, X_val, y_train, y_val = train_test_split(\n",
+    "    X, train_labels, train_size = 0.75\n",
+    ")\n",
+    "\n",
+    "for c in [0.01, 0.05, 0.25, 0.5, 1]:\n",
+    "    \n",
+    "    lr = LogisticRegression(C=c)\n",
+    "    lr.fit(X_train, y_train)\n",
+    "    print (\"Accuracy for C=%s: %s\" \n",
+    "           % (c, accuracy_score(y_val, lr.predict(X_val))))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0])"
+      ]
+     },
+     "execution_count": 28,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# testing model on test data set\n",
+    "lr.predict(X_test[29])  # predicted result of test review 29 "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0"
+      ]
+     },
+     "execution_count": 29,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_labels[29] # actual result of test review 29 \n",
+    "# predicting and result are same so we can say that our sentiment analyzer is working correct"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "'three days of use and it broke  very disappointed in this product  it worked perfectly for exactly three days and could not be resuscitated  it was very inexpensive so i did not want to pay half again the price to ship it back for an exchange  so the company would do nothing when they sent me an inquiry as to product satisfaction '"
+      ]
+     },
+     "execution_count": 30,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_texts[29]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
